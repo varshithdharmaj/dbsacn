@@ -3,51 +3,49 @@ import numpy as np
 import pickle
 import os
 
-# Load the trained model using absolute path
+# Load the model
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'parkinson_model.pkl')
+SCALER_PATH = os.path.join(os.path.dirname(__file__), 'scaler.pkl')
 
 with open(MODEL_PATH, 'rb') as file:
     model = pickle.load(file)
 
-# Optional: Load the scaler if you used StandardScaler or MinMaxScaler during training
-try:
-    SCALER_PATH = os.path.join(os.path.dirname(__file__), 'scaler.pkl')
-    with open(SCALER_PATH, 'rb') as file:
-        scaler = pickle.load(file)
+# Load scaler if used
+if os.path.exists(SCALER_PATH):
+    with open(SCALER_PATH, 'rb') as s:
+        scaler = pickle.load(s)
     scaler_loaded = True
-except FileNotFoundError:
+else:
     scaler_loaded = False
 
+# Feature list (used while training)
+feature_names = [
+    'MDVP:Fo(Hz)', 'MDVP:Fhi(Hz)', 'MDVP:Flo(Hz)', 'MDVP:Jitter(%)', 'MDVP:Jitter(Abs)',
+    'MDVP:RAP', 'MDVP:PPQ', 'Jitter:DDP', 'MDVP:Shimmer', 'MDVP:Shimmer(dB)',
+    'Shimmer:APQ3', 'Shimmer:APQ5', 'MDVP:APQ', 'Shimmer:DDA', 'NHR',
+    'HNR', 'RPDE', 'DFA', 'spread1', 'spread2', 'D2', 'PPE'
+]
+
 # Streamlit UI
-st.set_page_config(page_title="Parkinson's Disease Detection", page_icon="🧠")
-st.title("🧠 Parkinson’s Disease Detection App")
-st.markdown("Upload voice features to detect Parkinson’s Disease.")
+st.set_page_config(page_title="Parkinson's Prediction", layout="centered")
+st.title("🧠 Parkinson’s Disease Prediction App")
+st.markdown("Enter the values for each feature below:")
 
-# Input fields
-fo = st.number_input("MDVP:Fo(Hz)", min_value=0.0, step=0.1)
-fhi = st.number_input("MDVP:Fhi(Hz)", min_value=0.0, step=0.1)
-flo = st.number_input("MDVP:Flo(Hz)", min_value=0.0, step=0.1)
-jitter_percent = st.number_input("MDVP:Jitter(%)", min_value=0.0, step=0.001)
-rap = st.number_input("MDVP:RAP", min_value=0.0, step=0.001)
-ppe = st.number_input("PPE", min_value=0.0, step=0.001)
+# Collect all inputs
+input_features = []
+for name in feature_names:
+    value = st.number_input(name, step=0.001, format="%.6f")
+    input_features.append(value)
 
-# Prepare input
-user_input = np.array([[fo, fhi, flo, jitter_percent, rap, ppe]])
+input_data = np.array([input_features])
 
-# Predict
 if st.button("Predict"):
-    try:
-        # Apply scaling if scaler is available
-        if scaler_loaded:
-            user_input_scaled = scaler.transform(user_input)
-            prediction = model.predict(user_input_scaled)
-        else:
-            prediction = model.predict(user_input)
+    if scaler_loaded:
+        input_data = scaler.transform(input_data)
+    prediction = model.predict(input_data)
+    probability = model.predict_proba(input_data)[0][1]
 
-        if prediction[0] == 1:
-            st.error("⚠️ The patient is likely to have Parkinson’s Disease.")
-        else:
-            st.success("✅ The patient is unlikely to have Parkinson’s Disease.")
-
-    except Exception as e:
-        st.error(f"❌ Prediction failed: {str(e)}")
+    if prediction[0] == 1:
+        st.error(f"⚠️ The person is likely to have Parkinson's disease.\nProbability: {probability:.2%}")
+    else:
+        st.success(f"✅ The person is unlikely to have Parkinson's disease.\nProbability: {probability:.2%}")
