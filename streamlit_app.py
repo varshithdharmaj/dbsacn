@@ -26,6 +26,17 @@ feature_names = [
     'Shimmer:APQ3', 'Shimmer:APQ5', 'MDVP:APQ', 'Shimmer:DDA', 'NHR',
     'HNR', 'RPDE', 'DFA', 'spread1', 'spread2', 'D2', 'PPE'
 ]
+import io
+
+# Sample data row
+sample_row = [119.992, 157.302, 74.997, 0.00784, 0.00007, 0.00370, 0.00554, 0.01109,
+              0.04374, 0.426, 0.02182, 0.03130, 0.02971, 0.06545, 0.02211,
+              21.033, 0.414783, 0.815285, -4.813031, 0.266482, 2.301442, 0.284654]
+
+# Convert to CSV for download
+csv_data = pd.DataFrame([sample_row], columns=feature_names).to_csv(index=False)
+st.download_button("📥 Download Sample CSV", csv_data, file_name="sample_input.csv", mime="text/csv")
+
 
 # UI setup
 st.set_page_config(page_title="Parkinson's Prediction", layout="centered")
