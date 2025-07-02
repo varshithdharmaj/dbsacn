@@ -3,22 +3,29 @@ import numpy as np
 import pickle
 import os
 
-# Load the model
+# === Load the Model ===
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'parkinson_model.pkl')
 SCALER_PATH = os.path.join(os.path.dirname(__file__), 'scaler.pkl')
 
-with open(MODEL_PATH, 'rb') as file:
-    model = pickle.load(file)
+try:
+    with open(MODEL_PATH, 'rb') as file:
+        model = pickle.load(file)
+except Exception as e:
+    st.error(f"❌ Failed to load model: {e}")
+    st.stop()
 
-# Load scaler if used
+# === Load the Scaler (if exists) ===
+scaler = None
 if os.path.exists(SCALER_PATH):
-    with open(SCALER_PATH, 'rb') as s:
-        scaler = pickle.load(s)
-    scaler_loaded = True
+    try:
+        with open(SCALER_PATH, 'rb') as s:
+            scaler = pickle.load(s)
+    except Exception as e:
+        st.warning(f"⚠️ Scaler exists but couldn't be loaded: {e}")
 else:
-    scaler_loaded = False
+    st.info("ℹ️ No scaler found. Input will be used without scaling.")
 
-# Feature list (used while training)
+# === Feature List ===
 feature_names = [
     'MDVP:Fo(Hz)', 'MDVP:Fhi(Hz)', 'MDVP:Flo(Hz)', 'MDVP:Jitter(%)', 'MDVP:Jitter(Abs)',
     'MDVP:RAP', 'MDVP:PPQ', 'Jitter:DDP', 'MDVP:Shimmer', 'MDVP:Shimmer(dB)',
@@ -26,26 +33,32 @@ feature_names = [
     'HNR', 'RPDE', 'DFA', 'spread1', 'spread2', 'D2', 'PPE'
 ]
 
-# Streamlit UI
+# === Streamlit UI ===
 st.set_page_config(page_title="Parkinson's Prediction", layout="centered")
 st.title("🧠 Parkinson’s Disease Prediction App")
-st.markdown("Enter the values for each feature below:")
+st.markdown("Please enter the following voice measurements:")
 
-# Collect all inputs
+# === Collect Input Features ===
 input_features = []
 for name in feature_names:
     value = st.number_input(name, step=0.001, format="%.6f")
     input_features.append(value)
 
-input_data = np.array([input_features])
+input_data = np.array([input_features])  # shape: (1, 22)
 
-if st.button("Predict"):
-    if scaler_loaded:
-        input_data = scaler.transform(input_data)
-    prediction = model.predict(input_data)
-    probability = model.predict_proba(input_data)[0][1]
+# === Predict Button ===
+if st.button("🔍 Predict"):
+    try:
+        # Apply scaler if available
+        if scaler:
+            input_data = scaler.transform(input_data)
+        
+        prediction = model.predict(input_data)
+        probability = model.predict_proba(input_data)[0][1] if hasattr(model, "predict_proba") else None
 
-    if prediction[0] == 1:
-        st.error(f"⚠️ The person is likely to have Parkinson's disease.\nProbability: {probability:.2%}")
-    else:
-        st.success(f"✅ The person is unlikely to have Parkinson's disease.\nProbability: {probability:.2%}")
+        if prediction[0] == 1:
+            st.error(f"⚠️ Likely Parkinson's Disease Detected.\nProbability: {probability:.2%}" if probability else "⚠️ Likely Parkinson's Disease Detected.")
+        else:
+            st.success(f"✅ Unlikely to have Parkinson's Disease.\nProbability: {probability:.2%}" if probability else "✅ Unlikely to have Parkinson's Disease.")
+    except Exception as e:
+        st.error(f"❌ Prediction failed: {e}")
