@@ -35,7 +35,7 @@ feature_names = [
 
 # === Streamlit UI ===
 st.set_page_config(page_title="Parkinson's Prediction", layout="centered")
-st.title("🧠 Parkinson’s Disease Prediction App")
+st.title("🧠 Parkinson’s Disease Prediction ")
 st.markdown("Please enter the following voice measurements:")
 
 # === Collect Input Features ===
