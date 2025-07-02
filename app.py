@@ -2,6 +2,12 @@
 import streamlit as st
 import numpy as np
 import pickle
+import easyocr
+import cv2
+import numpy as np
+from PIL import Image
+import plotly.graph_objects as go
+
 
 # Load model
 model = pickle.load(open('parkinson_model.pkl', 'rb'))
