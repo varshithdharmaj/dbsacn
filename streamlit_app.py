@@ -4,7 +4,15 @@ import numpy as np
 import pickle
 
 # Load the trained model
-model = pickle.load(open('parkinson_model.pkl', 'rb'))
+import os
+import pickle
+
+# Load the model safely using absolute path
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'parkinson_model.pkl')
+
+with open(MODEL_PATH, 'rb') as file:
+    model = pickle.load(file)
+
 
 st.set_page_config(page_title="Parkinson's Disease Detection", page_icon="🧠")
 st.title("🧠 Parkinson’s Disease Detection App")
