@@ -44,7 +44,8 @@ st.title("🧠 Parkinson’s Disease Prediction")
 st.markdown("Choose how you want to input the data:")
 
 # Input method
-input_mode = st.radio("Input Method", ["Manual Entry", "CSV Upload", "Paste Values"])
+input_mode = st.radio("Select Input Method", ["Manual Entry", "CSV Upload", "Paste Values", "Upload Screenshot (Coming Soon)"])
+
 
 input_data = None
 
@@ -79,6 +80,13 @@ elif input_mode == "Paste Values":
                 input_data = np.array([values])
         except ValueError:
             st.error("Ensure all values are numeric and separated by commas.")
+elif input_mode == "Upload Screenshot (Coming Soon)":
+    st.info("🖼️ Upload a screenshot of your report. This feature will auto-extract values in future updates.")
+    uploaded_image = st.file_uploader("Upload Image (PNG or JPG)", type=["png", "jpg", "jpeg"])
+    if uploaded_image is not None:
+        st.image(uploaded_image, caption="Uploaded Screenshot", use_column_width=True)
+        st.warning("🔧 OCR-based auto-detection coming soon! For now, use another method to enter values.")
+
 
 # Predict
 if input_data is not None and st.button("Predict"):
