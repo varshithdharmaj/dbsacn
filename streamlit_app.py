@@ -1,139 +1,68 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
 import pickle
-import pytesseract
-from PIL import Image
-import re
-import plotly.graph_objects as go
 
-# Optional: Set this if tesseract is not found
-# pytesseract.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'
+# Load models and scalers
+try:
+    model_6 = pickle.load(open("model_6.pkl", "rb"))
+    scaler_6 = pickle.load(open("scaler_6.pkl", "rb"))
+except FileNotFoundError:
+    st.error("❌ 6-feature model or scaler file not found. Please ensure 'model_6.pkl' and 'scaler_6.pkl' are in the app folder.")
+    st.stop()
 
-# Load models
-model_6 = pickle.load(open("parkinson_model_6.pkl", "rb"))
-scaler_6 = pickle.load(open("scaler_6.pkl", "rb"))  # ✅ Load the scaler
-model_22 = pickle.load(open("parkinson_model_22.pkl", "rb"))
+try:
+    model_22 = pickle.load(open("model_22.pkl", "rb"))
+    scaler_22 = pickle.load(open("scaler_22.pkl", "rb"))
+except FileNotFoundError:
+    st.error("❌ 22-feature model or scaler file not found. Please ensure 'model_22.pkl' and 'scaler_22.pkl' are in the app folder.")
+    st.stop()
 
+# Feature names
 features_6 = ['fo', 'fhi', 'flo', 'jitter_percent', 'rap', 'ppe']
-features_22 = features_6 + [f'feature_{i}' for i in range(7, 23)]
+features_22 = [
+    'fo', 'fhi', 'flo', 'jitter_percent', 'jitter_abs', 'rap', 'ppq', 'ddp',
+    'shimmer', 'shimmer_db', 'shimmer_apq3', 'shimmer_apq5', 'apq', 'dda',
+    'nhr', 'hnr', 'rpde', 'dfa', 'spread1', 'spread2', 'ppe', 'mdvp_fv'
+]
 
-st.set_page_config(page_title="Parkinson's Predictor", layout="centered")
-st.title("🧠 Parkinson's Disease Predictor")
+# App title
+st.title("🧠 Parkinson's Disease Prediction App")
 
-# Model selector
-model_type = st.radio("Select Model:", ["6-feature model", "22-feature model"])
+# Model selection
+model_choice = st.radio("Select Prediction Model", ["6 Features", "22 Features"])
 
-# Input method selector
-input_mode = st.selectbox("Choose Input Method:", [
-    "Upload CSV",
-    "Manual Entry Form",
-    "Comma-Separated Text",
-    "Upload Image (OCR)" if model_type == "6-feature model" else "Upload Image (OCR) (Disabled)"
-])
+# 6-Feature Mode
+if model_choice == "6 Features":
+    st.subheader("🔢 Input 6 Voice Features")
+    input_values = []
+    for feature in features_6:
+        value = st.number_input(f"{feature}", format="%.6f")
+        input_values.append(value)
 
-required_features = features_6 if model_type == "6-feature model" else features_22
-model = model_6 if model_type == "6-feature model" else model_22
+    if st.button("🔍 Predict (6 Features)"):
+        input_array = np.array(input_values).reshape(1, -1)
+        input_scaled = scaler_6.transform(input_array)
+        prediction = model_6.predict(input_scaled)[0]
 
-# --- CSV Upload ---
-if input_mode == "Upload CSV":
-    uploaded = st.file_uploader("📄 Upload CSV file", type=["csv"])
-    if uploaded:
-        df = pd.read_csv(uploaded)
-        st.dataframe(df)
-
-        if all(f in df.columns for f in required_features):
-            X = df[required_features].iloc[-1:].values
-            if model_type == "6-feature model":
-                X_scaled = scaler_6.transform(X)
-                prediction = model.predict(X_scaled)[0]
-            else:
-                prediction = model.predict(X)[0]
-
-            st.success(f"✅ Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
-            fig = go.Figure(data=[go.Bar(x=required_features, y=X.flatten())])
-            fig.update_layout(title="📊 Feature Values")
-            st.plotly_chart(fig)
+        if prediction == 1:
+            st.error("🔍 Prediction: Parkinson's Likely")
         else:
-            st.error("❌ Required features not found in uploaded file.")
+            st.success("✅ Prediction: Parkinson's Not Likely")
 
-# --- Manual Entry Form ---
-elif input_mode == "Manual Entry Form":
-    st.info("Enter each value in a separate field:")
-    input_vals = []
-    for f in required_features:
-        val = st.text_input(f"{f}", key=f)
-        try:
-            input_vals.append(float(val))
-        except:
-            input_vals.append(None)
+# 22-Feature Mode
+elif model_choice == "22 Features":
+    st.subheader("🔢 Input 22 Voice Features")
+    input_values = []
+    for feature in features_22:
+        value = st.number_input(f"{feature}", format="%.6f")
+        input_values.append(value)
 
-    if st.button("Predict"):
-        if None in input_vals:
-            st.error("⚠️ Please enter valid numeric values for all features.")
+    if st.button("🔍 Predict (22 Features)"):
+        input_array = np.array(input_values).reshape(1, -1)
+        input_scaled = scaler_22.transform(input_array)
+        prediction = model_22.predict(input_scaled)[0]
+
+        if prediction == 1:
+            st.error("🔍 Prediction: Parkinson's Likely")
         else:
-            X = np.array(input_vals).reshape(1, -1)
-            if model_type == "6-feature model":
-                X_scaled = scaler_6.transform(X)
-                prediction = model.predict(X_scaled)[0]
-            else:
-                prediction = model.predict(X)[0]
-
-            st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
-            fig = go.Figure(data=[go.Bar(x=required_features, y=X.flatten())])
-            fig.update_layout(title="📊 Feature Values")
-            st.plotly_chart(fig)
-
-# --- Comma-Separated Text Input ---
-elif input_mode == "Comma-Separated Text":
-    st.info(f"Paste values in order ({len(required_features)} features), separated by commas:")
-    user_input = st.text_area("Enter comma-separated values:")
-
-    if st.button("Predict"):
-        try:
-            values = list(map(float, user_input.strip().split(',')))
-            if len(values) != len(required_features):
-                st.error(f"❌ Please provide exactly {len(required_features)} numeric values.")
-            else:
-                X = np.array(values).reshape(1, -1)
-                if model_type == "6-feature model":
-                    X_scaled = scaler_6.transform(X)
-                    prediction = model.predict(X_scaled)[0]
-                else:
-                    prediction = model.predict(X)[0]
-
-                st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
-                fig = go.Figure(data=[go.Bar(x=required_features, y=X.flatten())])
-                fig.update_layout(title="📊 Feature Values")
-                st.plotly_chart(fig)
-        except:
-            st.error("⚠️ Invalid input format. Ensure values are numeric and separated by commas.")
-
-# --- OCR Input for 6-Feature Model Only ---
-elif input_mode.startswith("Upload Image") and model_type == "6-feature model":
-    image = st.file_uploader("🖼️ Upload image with 6 feature values (in order)", type=["png", "jpg", "jpeg"])
-    if image:
-        img = Image.open(image)
-        st.image(img, caption="Uploaded Image", use_column_width=True)
-
-        try:
-            text = pytesseract.image_to_string(img)
-            st.text_area("📋 Extracted Text from Image", text, height=150)
-            values = re.findall(r"[-+]?\d*\.\d+|\d+", text)
-            values = list(map(float, values))
-
-            if len(values) >= 6:
-                X = np.array(values[:6]).reshape(1, -1)
-                X_scaled = scaler_6.transform(X)
-                prediction = model_6.predict(X_scaled)[0]
-
-                st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
-                fig = go.Figure(data=[go.Bar(x=features_6, y=X.flatten())])
-                fig.update_layout(title="📊 Feature Values (from OCR)")
-                st.plotly_chart(fig)
-            else:
-                st.warning("❗ OCR failed to extract enough numeric values (need 6).")
-        except pytesseract.pytesseract.TesseractNotFoundError:
-            st.error("❌ Tesseract-OCR not found. Please install it or set `tesseract_cmd` path.")
-        except Exception as e:
-            st.error(f"❌ OCR processing failed: {str(e)}")
+            st.success("✅ Prediction: Parkinson's Not Likely")
