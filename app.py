@@ -70,9 +70,43 @@ if st.button("🔍 Predict"):
     prediction = model.predict(input_data)
     
     if prediction[0] == 1:
-        st.error("⚠️ The patient is likely to have Parkinson’s disease.")
-    else:
-        st.success("✅ The patient is unlikely to have Parkinson’s disease.")
+    st.error("⚠️ The patient is likely to have Parkinson’s disease.")
+else:
+    st.success("✅ The patient is unlikely to have Parkinson’s disease.")
+
+# -----------------------------------------
+# 📊 Radar Chart Visualization Starts Here
+# -----------------------------------------
+
+# Labels and input values
+labels = ['MDVP:Fo(Hz)', 'MDVP:Fhi(Hz)', 'MDVP:Flo(Hz)', 'MDVP:Jitter(%)', 'MDVP:RAP', 'PPE']
+values = [fo, fhi, flo, jitter_percent, rap, ppe]
+
+# Normalize the values for a cleaner radar chart
+max_vals = [300, 400, 300, 1.0, 0.2, 1.0]  # Adjust based on domain knowledge
+scaled_values = [v / mv if mv != 0 else 0 for v, mv in zip(values, max_vals)]
+
+# Plot radar chart using Plotly
+fig = go.Figure()
+
+fig.add_trace(go.Scatterpolar(
+    r=scaled_values,
+    theta=labels,
+    fill='toself',
+    name='Patient Input',
+    line=dict(color='deepskyblue')
+))
+
+fig.update_layout(
+    polar=dict(
+        radialaxis=dict(visible=True, range=[0, 1])
+    ),
+    showlegend=True,
+    title="📈 Voice Feature Profile (Radar Chart)"
+)
+
+st.plotly_chart(fig)
+
 
     # --- VISUALIZATION ---
     st.markdown("### 📈 Feature Visualization")
