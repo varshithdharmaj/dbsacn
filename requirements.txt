@@ -1,7 +1,7 @@
 streamlit
+pandas
 numpy
-pillow
-easyocr
-plotly
 scikit-learn
-torch
+pillow
+pytesseract
+plotly
