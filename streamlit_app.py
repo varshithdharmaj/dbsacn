@@ -1,72 +1,82 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 import pickle
-import plotly.express as px
+import os
 
-# Avoid naming this file as streamlit.py when running
-# Load model bundle
-with open("parkinson_model.pkl", "rb") as f:
-    bundle = pickle.load(f)
-    model = bundle["model"]
-    scaler = bundle["scaler"]
-    feature_names = bundle["features"]
+# Load the model
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'parkinson_model.pkl')
+SCALER_PATH = os.path.join(os.path.dirname(__file__), 'scaler.pkl')
 
-# App setup
-st.set_page_config(page_title="Parkinson's Detection", layout="centered")
-st.title("🧠 Parkinson's Disease Detection App")
-st.markdown("This app uses a machine learning model to detect **Parkinson's Disease** from biomedical voice features.")
+with open(MODEL_PATH, 'rb') as file:
+    model = pickle.load(file)
 
-# Sidebar info
-with st.sidebar:
-    st.header("Instructions")
-    st.markdown("""
-    - Enter the required voice features below.
-    - Press **Predict** to see the result.
-    """)
-    st.caption("Developed by Varshith Dharmaj")
+# Load scaler if used
+if os.path.exists(SCALER_PATH):
+    with open(SCALER_PATH, 'rb') as s:
+        scaler = pickle.load(s)
+    scaler_loaded = True
+else:
+    scaler_loaded = False
 
-# Input form
-st.subheader("Enter the values below:")
-input_data = {}
+# Feature list (used while training)
+feature_names = [
+    'MDVP:Fo(Hz)', 'MDVP:Fhi(Hz)', 'MDVP:Flo(Hz)', 'MDVP:Jitter(%)', 'MDVP:Jitter(Abs)',
+    'MDVP:RAP', 'MDVP:PPQ', 'Jitter:DDP', 'MDVP:Shimmer', 'MDVP:Shimmer(dB)',
+    'Shimmer:APQ3', 'Shimmer:APQ5', 'MDVP:APQ', 'Shimmer:DDA', 'NHR',
+    'HNR', 'RPDE', 'DFA', 'spread1', 'spread2', 'D2', 'PPE'
+]
 
-with st.form("input_form"):
-    col1, col2 = st.columns(2)
-    for i, feature in enumerate(feature_names):
-        with (col1 if i % 2 == 0 else col2):
-            input_data[feature] = st.number_input(feature, step=0.001, format="%.6f")
+# Streamlit UI
+st.set_page_config(page_title="Parkinson's Prediction", layout="centered")
+st.title("🧠 Parkinson’s Disease Prediction App")
+st.markdown("Choose how you want to input the data:")
 
-    submitted = st.form_submit_button("Predict")
+# Select input mode
+input_mode = st.radio("Select Input Method", ["Manual Entry", "CSV Upload", "Paste Values"])
 
-if submitted:
-    try:
-        values = np.array([input_data[f] for f in feature_names]).reshape(1, -1)
-        values_scaled = scaler.transform(values)
-        prediction = model.predict(values_scaled)[0]
+input_data = None
 
-        if hasattr(model, "predict_proba"):
-            prob = model.predict_proba(values_scaled)[0]
-            confidence = max(prob) * 100
-        else:
-            prob = [0.5, 0.5]
-            confidence = "N/A"
+if input_mode == "Manual Entry":
+    input_features = []
+    for name in feature_names:
+        value = st.number_input(name, step=0.001, format="%.6f")
+        input_features.append(value)
+    input_data = np.array([input_features])
 
-        st.subheader("Prediction Result:")
-        if prediction == 1:
-            st.error("🔴 The person is likely to have **Parkinson's Disease**.")
-        else:
-            st.success("🟢 The person is **unlikely to have Parkinson's Disease**.")
+elif input_mode == "CSV Upload":
+    uploaded_file = st.file_uploader("Upload a CSV file with 1 row and 22 columns", type=["csv"])
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file)
+            if df.shape[1] != 22:
+                st.error("CSV must contain exactly 22 columns.")
+            else:
+                input_data = df.values
+        except Exception as e:
+            st.error(f"Error reading CSV: {e}")
 
-        if isinstance(confidence, float):
-            st.markdown(f"**Model Confidence:** {confidence:.2f}%")
+elif input_mode == "Paste Values":
+    text_input = st.text_area("Paste 22 comma-separated values", height=100)
+    if text_input:
+        try:
+            values = [float(x.strip()) for x in text_input.split(",")]
+            if len(values) != 22:
+                st.error("You must enter exactly 22 values.")
+            else:
+                input_data = np.array([values])
+        except ValueError:
+            st.error("Please ensure all values are numeric and comma-separated.")
 
-        # Display bar chart
-        fig = px.bar(
-            x=["Parkinson's", "Healthy"],
-            y=prob,
-            labels={"x": "Class", "y": "Probability"},
-            title="Prediction Probability"
-        )
-        st.plotly_chart(fig)
+# Predict if data is ready
+if input_data is not None and st.button("Predict"):
+    if scaler_loaded:
+        input_data = scaler.transform(input_data)
 
-    except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
+    prediction = model.predict(input_data)
+    probability = model.predict_proba(input_data)[0][1]
+
+    if prediction[0] == 1:
+        st.error(f"⚠️ Likely Parkinson's Disease Detected. Probability: {probability:.2%}")
+    else:
+        st.success(f"✅ Unlikely to have Parkinson's Disease. Probability: {probability:.2%}")
