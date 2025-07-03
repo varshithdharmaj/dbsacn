@@ -1,4 +1,7 @@
 streamlit
-scikit-learn
 numpy
-pandas
+pillow
+easyocr
+plotly
+scikit-learn
+torch
