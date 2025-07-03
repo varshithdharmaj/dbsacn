@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 
 # Load models
 model_6 = pickle.load(open("parkinson_model_6.pkl", "rb"))
+scaler_6 = pickle.load(open("scaler_6.pkl", "rb"))  # ✅ Load the scaler
 model_22 = pickle.load(open("parkinson_model_22.pkl", "rb"))
 
 features_6 = ['fo', 'fhi', 'flo', 'jitter_percent', 'rap', 'ppe']
@@ -43,9 +44,13 @@ if input_mode == "Upload CSV":
 
         if all(f in df.columns for f in required_features):
             X = df[required_features].iloc[-1:].values
-            prediction = model.predict(X)[0]
-            st.success(f"✅ Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
+            if model_type == "6-feature model":
+                X_scaled = scaler_6.transform(X)
+                prediction = model.predict(X_scaled)[0]
+            else:
+                prediction = model.predict(X)[0]
 
+            st.success(f"✅ Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
             fig = go.Figure(data=[go.Bar(x=required_features, y=X.flatten())])
             fig.update_layout(title="📊 Feature Values")
             st.plotly_chart(fig)
@@ -55,7 +60,6 @@ if input_mode == "Upload CSV":
 # --- Manual Entry Form ---
 elif input_mode == "Manual Entry Form":
     st.info("Enter each value in a separate field:")
-
     input_vals = []
     for f in required_features:
         val = st.text_input(f"{f}", key=f)
@@ -69,9 +73,13 @@ elif input_mode == "Manual Entry Form":
             st.error("⚠️ Please enter valid numeric values for all features.")
         else:
             X = np.array(input_vals).reshape(1, -1)
-            prediction = model.predict(X)[0]
-            st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
+            if model_type == "6-feature model":
+                X_scaled = scaler_6.transform(X)
+                prediction = model.predict(X_scaled)[0]
+            else:
+                prediction = model.predict(X)[0]
 
+            st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
             fig = go.Figure(data=[go.Bar(x=required_features, y=X.flatten())])
             fig.update_layout(title="📊 Feature Values")
             st.plotly_chart(fig)
@@ -79,8 +87,8 @@ elif input_mode == "Manual Entry Form":
 # --- Comma-Separated Text Input ---
 elif input_mode == "Comma-Separated Text":
     st.info(f"Paste values in order ({len(required_features)} features), separated by commas:")
-
     user_input = st.text_area("Enter comma-separated values:")
+
     if st.button("Predict"):
         try:
             values = list(map(float, user_input.strip().split(',')))
@@ -88,9 +96,13 @@ elif input_mode == "Comma-Separated Text":
                 st.error(f"❌ Please provide exactly {len(required_features)} numeric values.")
             else:
                 X = np.array(values).reshape(1, -1)
-                prediction = model.predict(X)[0]
-                st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
+                if model_type == "6-feature model":
+                    X_scaled = scaler_6.transform(X)
+                    prediction = model.predict(X_scaled)[0]
+                else:
+                    prediction = model.predict(X)[0]
 
+                st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
                 fig = go.Figure(data=[go.Bar(x=required_features, y=X.flatten())])
                 fig.update_layout(title="📊 Feature Values")
                 st.plotly_chart(fig)
@@ -107,15 +119,15 @@ elif input_mode.startswith("Upload Image") and model_type == "6-feature model":
         try:
             text = pytesseract.image_to_string(img)
             st.text_area("📋 Extracted Text from Image", text, height=150)
-
             values = re.findall(r"[-+]?\d*\.\d+|\d+", text)
             values = list(map(float, values))
 
             if len(values) >= 6:
                 X = np.array(values[:6]).reshape(1, -1)
-                prediction = model_6.predict(X)[0]
-                st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
+                X_scaled = scaler_6.transform(X)
+                prediction = model_6.predict(X_scaled)[0]
 
+                st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
                 fig = go.Figure(data=[go.Bar(x=features_6, y=X.flatten())])
                 fig.update_layout(title="📊 Feature Values (from OCR)")
                 st.plotly_chart(fig)
