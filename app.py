@@ -6,36 +6,32 @@ import re
 from PIL import Image
 import plotly.graph_objects as go
 
-# Load the model
+# Load the trained model
 model = pickle.load(open('parkinson_model.pkl', 'rb'))
 
-st.set_page_config(page_title="Parkinson’s Detection", layout="centered")
+st.set_page_config(page_title="Parkinson's Detector", layout="centered")
 
-st.title("🧠 Parkinson’s Disease Detection")
-st.write("Upload patient's voice report or enter values manually to detect Parkinson’s")
+st.title("🧠 Parkinson's Disease Detection App")
 
-# --- OCR SECTION ---
-st.markdown("## 📸 OCR: Upload Screenshot to Auto-Fill")
-uploaded_file = st.file_uploader("🖼️ Upload a screenshot of your report", type=['png', 'jpg', 'jpeg'])
+st.markdown("Upload a voice report screenshot or manually enter features to check for Parkinson's disease.")
 
-ocr_values = {}
+# OCR Upload Section
+st.subheader("📸 Upload Screenshot for Auto-Fill")
+uploaded_file = st.file_uploader("Upload Image (JPG/PNG)", type=["png", "jpg", "jpeg"])
+
+ocr_data = {}
 
 if uploaded_file:
     image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Screenshot", use_column_width=True)
-
+    st.image(image, caption="Uploaded Report", use_column_width=True)
+    
     reader = easyocr.Reader(['en'], gpu=False)
     result = reader.readtext(np.array(image), detail=0)
-    extracted_text = ' '.join(result)
+    combined_text = ' '.join(result)
     
-    def extract_value(pattern, text):
+    def extract(pattern, text):
         match = re.search(pattern, text)
-        if match:
-            try:
-                return float(match.group(1))
-            except:
-                return None
-        return None
+        return float(match.group(1)) if match else None
 
     patterns = {
         'fo': r'Fo\(Hz\)[^\d]*([\d.]+)',
@@ -46,63 +42,55 @@ if uploaded_file:
         'ppe': r'PPE[^\d]*([\d.]+)'
     }
 
-    ocr_values = {key: extract_value(pat, extracted_text) for key, pat in patterns.items()}
+    ocr_data = {k: extract(p, combined_text) for k, p in patterns.items()}
+    st.info("OCR Extracted Values:")
+    for k, v in ocr_data.items():
+        st.write(f"**{k.upper()}**: {v if v is not None else 'Not Detected'}")
 
-    st.subheader("📊 Extracted Values")
-    for key, value in ocr_values.items():
-        st.write(f"**{key}**: {value if value is not None else 'Not found'}")
+# Manual Input Section
+st.subheader("✍️ Manual Input (Auto-filled if OCR used)")
 
-# --- MANUAL INPUT SECTION ---
-st.markdown("## 📝 Manual Input (Optional or for Correction)")
-
-fo = st.number_input("MDVP:Fo(Hz)", min_value=0.0, step=0.1, value=ocr_values.get('fo', 0.0))
-fhi = st.number_input("MDVP:Fhi(Hz)", min_value=0.0, step=0.1, value=ocr_values.get('fhi', 0.0))
-flo = st.number_input("MDVP:Flo(Hz)", min_value=0.0, step=0.1, value=ocr_values.get('flo', 0.0))
-jitter_percent = st.number_input("MDVP:Jitter(%)", min_value=0.0, step=0.001, value=ocr_values.get('jitter_percent', 0.0))
-rap = st.number_input("MDVP:RAP", min_value=0.0, step=0.001, value=ocr_values.get('rap', 0.0))
-ppe = st.number_input("PPE", min_value=0.0, step=0.001, value=ocr_values.get('ppe', 0.0))
+fo = st.number_input("MDVP:Fo(Hz)", value=ocr_data.get('fo', 0.0), step=0.1)
+fhi = st.number_input("MDVP:Fhi(Hz)", value=ocr_data.get('fhi', 0.0), step=0.1)
+flo = st.number_input("MDVP:Flo(Hz)", value=ocr_data.get('flo', 0.0), step=0.1)
+jitter_percent = st.number_input("MDVP:Jitter(%)", value=ocr_data.get('jitter_percent', 0.0), step=0.001)
+rap = st.number_input("MDVP:RAP", value=ocr_data.get('rap', 0.0), step=0.001)
+ppe = st.number_input("PPE", value=ocr_data.get('ppe', 0.0), step=0.001)
 
 input_data = np.array([[fo, fhi, flo, jitter_percent, rap, ppe]])
 
-# --- PREDICTION ---
-if st.button("🔍 Predict"):
-    prediction = model.predict(input_data)
-
-    if prediction[0] == 1:
-        st.error("⚠️ The patient is likely to have Parkinson’s disease.")
+# Prediction + Visualization
+if st.button("🔍 Detect Parkinson's"):
+    result = model.predict(input_data)
+    if result[0] == 1:
+        st.error("⚠️ Parkinson’s disease detected.")
     else:
-        st.success("✅ The patient is unlikely to have Parkinson’s disease.")
+        st.success("✅ No signs of Parkinson’s disease.")
 
-    # --- RADAR CHART ---
-    labels = ['MDVP:Fo(Hz)', 'MDVP:Fhi(Hz)', 'MDVP:Flo(Hz)', 'MDVP:Jitter(%)', 'MDVP:RAP', 'PPE']
-    values = [fo, fhi, flo, jitter_percent, rap, ppe]
+    # Radar Chart
+    labels = ['Fo', 'Fhi', 'Flo', 'Jitter(%)', 'RAP', 'PPE']
+    raw_vals = [fo, fhi, flo, jitter_percent, rap, ppe]
+    max_vals = [300, 400, 300, 1.0, 0.2, 1.0]
+    scaled_vals = [v / m if m != 0 else 0 for v, m in zip(raw_vals, max_vals)]
 
-    max_vals = [300, 400, 300, 1.0, 0.2, 1.0]  # Based on medical reference ranges
-    scaled_values = [v / mv if mv != 0 else 0 for v, mv in zip(values, max_vals)]
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(
-        r=scaled_values,
+    radar_fig = go.Figure()
+    radar_fig.add_trace(go.Scatterpolar(
+        r=scaled_vals,
         theta=labels,
         fill='toself',
-        name='Patient Input',
+        name='Patient Profile',
         line=dict(color='deepskyblue')
     ))
-
-    fig.update_layout(
-        polar=dict(
-            radialaxis=dict(visible=True, range=[0, 1])
-        ),
-        showlegend=True,
-        title="📈 Voice Feature Profile (Radar Chart)"
+    radar_fig.update_layout(
+        title="📈 Feature Radar Chart",
+        polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
+        showlegend=False
     )
-    st.plotly_chart(fig)
+    st.plotly_chart(radar_fig)
 
-    # --- BAR CHART ---
-    st.markdown("### 📊 Feature Value Comparison")
-    features = ["Fo", "Fhi", "Flo", "Jitter(%)", "RAP", "PPE"]
-    fig2 = go.Figure(data=[
-        go.Bar(name='Values', x=features, y=values, marker_color='lightskyblue')
+    # Bar Chart
+    bar_fig = go.Figure(data=[
+        go.Bar(x=labels, y=raw_vals, marker_color='lightskyblue')
     ])
-    fig2.update_layout(title="Patient's Feature Values", yaxis_title="Value", xaxis_title="Feature")
-    st.plotly_chart(fig2)
+    bar_fig.update_layout(title="📊 Feature Values", xaxis_title="Feature", yaxis_title="Value")
+    st.plotly_chart(bar_fig)
