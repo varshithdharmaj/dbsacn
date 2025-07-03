@@ -1,4 +1,3 @@
-# streamlit_app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,7 +7,7 @@ from PIL import Image
 import re
 import plotly.graph_objects as go
 
-# Optional: set path to tesseract binary (customize this path if needed)
+# Optional: Set this if tesseract is not found
 # pytesseract.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'
 
 # Load models
@@ -25,9 +24,15 @@ st.title("🧠 Parkinson's Disease Predictor")
 model_type = st.radio("Select Model:", ["6-feature model", "22-feature model"])
 
 # Input method selector
-input_mode = st.selectbox("Choose Input Method:", 
-    ["Upload CSV", "Manual Text Input", "Upload Image (OCR)" if model_type == "6-feature model" else "Upload Image (OCR) (Disabled)"]
-)
+input_mode = st.selectbox("Choose Input Method:", [
+    "Upload CSV",
+    "Manual Entry Form",
+    "Comma-Separated Text",
+    "Upload Image (OCR)" if model_type == "6-feature model" else "Upload Image (OCR) (Disabled)"
+])
+
+required_features = features_6 if model_type == "6-feature model" else features_22
+model = model_6 if model_type == "6-feature model" else model_22
 
 # --- CSV Upload ---
 if input_mode == "Upload CSV":
@@ -36,24 +41,21 @@ if input_mode == "Upload CSV":
         df = pd.read_csv(uploaded)
         st.dataframe(df)
 
-        required_features = features_6 if model_type == "6-feature model" else features_22
         if all(f in df.columns for f in required_features):
             X = df[required_features].iloc[-1:].values
-            model = model_6 if model_type == "6-feature model" else model_22
             prediction = model.predict(X)[0]
             st.success(f"✅ Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
-            
+
             fig = go.Figure(data=[go.Bar(x=required_features, y=X.flatten())])
             fig.update_layout(title="📊 Feature Values")
             st.plotly_chart(fig)
         else:
-            st.error("❌ Required features not found in the uploaded file.")
+            st.error("❌ Required features not found in uploaded file.")
 
-# --- Manual Text Input ---
-elif input_mode == "Manual Text Input":
-    st.info("Enter values for each feature below:")
+# --- Manual Entry Form ---
+elif input_mode == "Manual Entry Form":
+    st.info("Enter each value in a separate field:")
 
-    required_features = features_6 if model_type == "6-feature model" else features_22
     input_vals = []
     for f in required_features:
         val = st.text_input(f"{f}", key=f)
@@ -66,7 +68,6 @@ elif input_mode == "Manual Text Input":
         if None in input_vals:
             st.error("⚠️ Please enter valid numeric values for all features.")
         else:
-            model = model_6 if model_type == "6-feature model" else model_22
             X = np.array(input_vals).reshape(1, -1)
             prediction = model.predict(X)[0]
             st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
@@ -74,6 +75,27 @@ elif input_mode == "Manual Text Input":
             fig = go.Figure(data=[go.Bar(x=required_features, y=X.flatten())])
             fig.update_layout(title="📊 Feature Values")
             st.plotly_chart(fig)
+
+# --- Comma-Separated Text Input ---
+elif input_mode == "Comma-Separated Text":
+    st.info(f"Paste values in order ({len(required_features)} features), separated by commas:")
+
+    user_input = st.text_area("Enter comma-separated values:")
+    if st.button("Predict"):
+        try:
+            values = list(map(float, user_input.strip().split(',')))
+            if len(values) != len(required_features):
+                st.error(f"❌ Please provide exactly {len(required_features)} numeric values.")
+            else:
+                X = np.array(values).reshape(1, -1)
+                prediction = model.predict(X)[0]
+                st.success(f"🔍 Prediction: **{'Parkinson\'s Likely' if prediction == 1 else 'Parkinson\'s Unlikely'}**")
+
+                fig = go.Figure(data=[go.Bar(x=required_features, y=X.flatten())])
+                fig.update_layout(title="📊 Feature Values")
+                st.plotly_chart(fig)
+        except:
+            st.error("⚠️ Invalid input format. Ensure values are numeric and separated by commas.")
 
 # --- OCR Input for 6-Feature Model Only ---
 elif input_mode.startswith("Upload Image") and model_type == "6-feature model":
