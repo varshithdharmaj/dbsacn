@@ -1,6 +1,6 @@
 
 
-🧠 Parkinson's Disease Detection 
+🧠. Parkinson's Disease Detection 
 
 This project detects the presence of Parkinson’s Disease using biomedical voice measurements. It uses supervised ML models trained on the UCI Parkinson’s dataset to classify patients based on extracted features from vocal recordings.
   # Parkinson's Disease Detection using ML
@@ -21,7 +21,7 @@ https://parkinsonusingml-dgknf8x8r5gkjd52zuaudu.streamlit.app/
 
 ## 📈 Results
 - Accuracy: ~X%
-- AUC-ROC: ~X
+- AUC-ROC:  ~X
 
 ## 🚀 Future Work
 - Voice-based deep learning
